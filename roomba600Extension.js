@@ -313,7 +313,7 @@
             alert("Roomba cannot play a note for that long.\\n"
                   + "Decrease the beats and/or increase the tempo");
         }
-        if ((note > 107) || (note < 31))
+        if ((note > 107) || ((note < 31) && (note !== 0))) // 0 = rest note.
         {
             alert("Roomba only has a note range of 31 to 107.\\n"
                   + "Please select within this range.");
@@ -839,7 +839,6 @@
     };
     var overcurrentOffTrigger = 32;  // ~0.5 second sounds good.
     var bumperCounts = 0;
-    var voltageAlerted = 0;
 
     function handleOvercurrent(motor) {
         overcurrentCounts[motor] += getBooleanSensor(motor.concat(' stall'))*2  - 1;
@@ -913,20 +912,6 @@
         handleOvercurrent('right wheel');
         handleOvercurrent('left wheel');
         handleConstantBumper();
-
-        if (getSensor('voltage') < 13000)
-        {
-            if (voltageAlerted === 0)
-            {
-                voltageAlerted = 1;
-                alert("Warning! Roomba\'s battery is low. Please charge.");
-            }
-        }
-        // Re-arm voltage alert with 1.5 V hysteresis (voltage drops while running)
-        else if (getSensor('voltage') > 14500)
-        {
-            voltageAlerted = 0;
-        }
     }
 
 
@@ -1154,7 +1139,7 @@
             /* Request stream */
             148,
             /* Number of packets requested */
-            17,
+            14,
             /* List of packets */
             7,             // Bumps and wheel-drops
             9, 10, 11, 12, // Cliffs
@@ -1162,10 +1147,8 @@
             14,            // Overcurrents (handled internally)
             17,            // IR opcode
             18,            // Buttons
-            22,            // Voltage
             34,            // Charge source available
             35,            // OI Mode
-            39, 40,        // Requested velocity and radius
             43, 44,        // Encoder counts
             45             // Light bumper
         ]);
@@ -1233,7 +1216,6 @@
         // 'h' 	Hat block (synchronous, returns boolean, true = run stack)
 
         blocks: [
-            ['h', 'when device is connected',  'whenDeviceConnected'],
             ['h', 'when %m.booleanSensor',     'whenSensorConnected', 'wall detected'],
             ['h', 'when %m.buttonBumper is pressed', 'whenSensorConnected', 'any button'],
             ['h', 'when %m.wheelDrop is dropped', 'whenSensorConnected', 'any wheel'],
@@ -1271,9 +1253,7 @@
             [' ', 'set clean LED color to %n','setCleanLEDColor','0'],
 
             // Commands
-            [' ', 'run cleaning demo','clean'],
             [' ', 'go to the dock','dock'],
-            [' ', 'disconnect robot', 'disconnect'],
         ],
         menus: {
             color:          [ 'off','green','red','amber','yellow'],
@@ -1349,11 +1329,11 @@
                               'light bumper activated',
                               */ ],
             // Analog sensor values
-            sensor:         [ 'voltage',
+            sensor:         [ 'ir-opcode',
+                              /*
+                              'voltage',
                               'velocity',
                               'radius',
-                              'ir-opcode',
-                              /*
                               'distance',
                               'angle',
                               'current',
