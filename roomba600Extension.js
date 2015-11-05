@@ -316,7 +316,8 @@
         if ((note > 107) || ((note < 31) && (note !== 0))) // 0 = rest note.
         {
             alert("Roomba only has a note range of 31 to 107.\\n"
-                  + "Please select within this range.");
+                  + "Please select within this range.\\n"
+                  + "To rest, use 0 as the note value.");
             callback();
         }
         var cmd = new Uint8Array([140, // Load 'song' (note in this case)
@@ -352,6 +353,7 @@
     var encoderDirections = [1,1];
     var driveSpeed = 0;
     var driveRadius = 32768;
+    var robotDriving = 0;
 
 
     ext.setDriveSpeed = function(speed) {
@@ -401,6 +403,8 @@
         if(speed < 0) {
             speed_twos = 65535 + speed;
         }
+        
+        robotDriving = (speed != 0); // Used for constant bump safety check
 
         var cmd = new Uint8Array([137,  // Drive
                                   (speed_twos >> 8) & 0xFF,
@@ -540,7 +544,12 @@
         if ((degrees > 360) || (degrees < 0))
         {
             alert("Angle must be between 0 and 360 degrees.");
-            return;
+            return callback();
+        }
+        if (driveSpeed === 0)
+        {
+            alert("Drive speed is set to 0%.");
+            return callback();
         }
         if(direction === 'clockwise')
         {
@@ -558,7 +567,7 @@
         turnUntilAngle = degrees;
         
         console.info("Turning until " + degrees + " degrees");
-        checkEncoderAngle(15, callback);
+        checkEncoderAngle(5, callback);
     };
 
     ext.turnUntilLeft = function(degrees, callback) {
@@ -578,11 +587,12 @@
         {
             alert("Distance must be between 0 and 15000 millimeters.\\n"
                   + "Set drive speed to a negative % to go backwards.");
-            return;
+            return callback();
         }
         if (driveSpeed === 0)
         {
             alert("Drive speed is set to 0%.");
+            return callback();
         }
 
         go(driveRadius, driveSpeed);
@@ -594,7 +604,7 @@
         driveUntilDistance = distance;
 
         console.info("Driving until " + distance + " mm");
-        checkEncoderDistance(15, callback);
+        checkEncoderDistance(5, callback);
     };
 
     ext.stop = function() {
@@ -800,6 +810,11 @@
             ledStates['powerColor'] = 47;
             break;
         default:
+            if ((color < 0) || (color > 255))
+            {
+                alert("Clean LED color must be between 0 and 255.");
+                return;
+            }
             ledStates['powerColor'] = color;
             break;
         }
@@ -867,7 +882,7 @@
     }
 
     function badBumper() {
-        return getBooleanSensor('bumper') && (getSensor('velocity') != 0);
+        return getBooleanSensor('bumper') && robotDriving;
     }
 
     function handleConstantBumper() {
@@ -906,12 +921,14 @@
                 setDigits();
             }
         }
-
-        handleOvercurrent('side-brush');
-        handleOvercurrent('main-brush');
-        handleOvercurrent('right wheel');
-        handleOvercurrent('left wheel');
-        handleConstantBumper();
+        else // Robot is in safe mode and can drive. Check safety conditions.
+        {
+            handleOvercurrent('side-brush');
+            handleOvercurrent('main-brush');
+            handleOvercurrent('right wheel');
+            handleOvercurrent('left wheel');
+            handleConstantBumper();
+        }
     }
 
 
@@ -1139,13 +1156,11 @@
             /* Request stream */
             148,
             /* Number of packets requested */
-            14,
+            12,
             /* List of packets */
             7,             // Bumps and wheel-drops
             9, 10, 11, 12, // Cliffs
-            13,            // Virtual wall
             14,            // Overcurrents (handled internally)
-            17,            // IR opcode
             18,            // Buttons
             34,            // Charge source available
             35,            // OI Mode
@@ -1218,17 +1233,25 @@
         blocks: [
             ['h', 'when %m.booleanSensor',     'whenSensorConnected', 'wall detected'],
             ['h', 'when %m.buttonBumper is pressed', 'whenSensorConnected', 'any button'],
-            ['h', 'when %m.wheelDrop is dropped', 'whenSensorConnected', 'any wheel'],
+            /* Disable this for now. Wheel drops are not useful in safe mode.
+             * ['h', 'when %m.wheelDrop is dropped', 'whenSensorConnected', 'any wheel'],
+             */
             ['h', 'when %m.cliff is detected',    'whenSensorConnected', 'any cliff'],
 
-            ['h', 'when %m.sensor %m.lessMore %n', 'whenSensorPass', 'sensor', '>', 0],
+            /* Disable this for now. No useful analog sensors currently.
+             * ['h', 'when %m.sensor %m.lessMore %n', 'whenSensorPass', 'sensor', '>', 0],
+             */
 
             ['b', '%m.booleanSensor',     'booleanSensor', 'wall detected'],
             ['b', '%m.buttonBumper is pressed', 'booleanSensor', 'any button'],
-            ['b', '%m.wheelDrop is dropped',    'booleanSensor', 'any wheel'],
+            /* Disable this for now. Wheel drops are not useful in safe mode.
+             *['b', '%m.wheelDrop is dropped',    'booleanSensor', 'any wheel'],
+             */
             ['b', '%m.cliff is detected', 'booleanSensor', 'any cliff'],
 
-            ['r', '%m.sensor value', 'sensor', 'sensor'],
+            /* Disable this for now. No useful analog sensors currently.
+             * ['r', '%m.sensor value', 'sensor', 'sensor'],
+             */
 
             // Songs
             [' ', 'set robot tempo to %n bpm', 'setTempo', '60'],
@@ -1256,20 +1279,18 @@
             [' ', 'go to the dock','dock'],
         ],
         menus: {
-            color:          [ 'off','green','red','amber','yellow'],
+            color:          [ 'green','red','amber','yellow'],
             led:            [ 'check-robot',
                               'dock',
                               'spot',
                               'debris',
-                              'Sat',
-                              'Fri',
-                              'Thu',
-                              'Wed',
-                              'Tue',
-                              'Mon',
                               'Sun',
-                              'Schedule',
-                              'Clock',
+                              'Mon',
+                              'Tue',
+                              'Wed',
+                              'Thu',
+                              'Fri',
+                              'Sat',
                               'AM',
                               'PM',
                               ':' ],
@@ -1284,8 +1305,10 @@
                               'minute button',
                               'hour button',
                               'day button',
+                              /* Bug with these two buttons right now.
                               'schedule button',
                               'clock button',
+                              */
                               'any button',
                               // Bumper
                               'right bumper',
@@ -1303,11 +1326,11 @@
                               'wall left detected',
                               'wall front detected',
                               'wall right detected',
-                              'virtual wall detected',
                               'charger plugged in',
                               'robot on dock',
                               'robot control allowed'
                               /*
+                              'virtual wall detected',
                               'side-brush stall detected',
                               'main-brush stall detected',
                               'right wheel stall detected',
@@ -1329,8 +1352,8 @@
                               'light bumper activated',
                               */ ],
             // Analog sensor values
-            sensor:         [ 'ir-opcode',
-                              /*
+            sensor:         [ /*
+                              'ir-opcode',
                               'voltage',
                               'velocity',
                               'radius',
