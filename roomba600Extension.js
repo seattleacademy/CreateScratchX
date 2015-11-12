@@ -350,7 +350,6 @@
         }
     }
 
-    var encoderDirections = [1,1];
     var driveSpeed = 0;
     var driveRadius = 32768;
     var robotDriving = 0;
@@ -414,57 +413,17 @@
                                  ]);
         sendToRobot(cmd);
         cmd = null;  // Is this necessary?
-
-        var wheelSpacingMM = 232;
-
-        // Set expected encoder direction
-        if((Math.abs(radius) > wheelSpacingMM) && (speed > 0)) {
-            encoderDirections = [1,1];
-        } else if((Math.abs(radius) > wheelSpacingMM) && (speed < 0)) {
-            encoderDirections = [-1,-1];
-        } else if((radius > 0) && (speed > 0)) {
-            encoderDirections = [-1,1];
-        } else if((radius < 0) && (speed > 0)) {
-            encoderDirections = [1,-1];
-        } else if((radius < 0) && (speed < 0)) {
-            encoderDirections = [-1,1];
-        } else if((radius > 0) && (speed < 0)) {
-            encoderDirections = [1,-1];
-        }
     }
 
     function calculateEncoderDiffs(startEnc, endEnc) {
         var diffs = [endEnc[0] - startEnc[0],
                      endEnc[1] - startEnc[1]];
 
-        if(encoderDirections[0] === -1) {
-            diffs[0] = startEnc[0] - endEnc[0];
-        }
+        if (diffs[0] >= 65535)  { diffs[0] -= 65535; }
+        else if (diffs[0] <= -65535) { diffs[0] += 65535; }
 
-        if(encoderDirections[1] === -1) {
-            diffs[1] = startEnc[1] - endEnc[1];
-        }
-
-        // Handle wraparound (leave some room for slippage)
-        if(diffs[0] < -50) {
-            if(encoderDirections[0] === -1) {
-                diffs[0] = startEnc[0] + (65535 - endEnc[0]);
-            } else {
-                diffs[0] = endEnc[0] + (65535 - startEnc[0]);
-            }
-        }
-
-        if(diffs[1] < -50) {
-            if(encoderDirections[1] === -1) {
-                diffs[1] = startEnc[1] + (65535 - endEnc[1]);
-            } else {
-                diffs[1] = endEnc[1] + (65535 - startEnc[1]);
-            }
-        }
-
-        // Apply sign to diffs
-        diffs[0] *= encoderDirections[0];
-        diffs[1] *= encoderDirections[1];
+        if (diffs[1] >= 65535)  { diffs[1] -= 65535; }
+        else if (diffs[1] <= -65535) { diffs[1] += 65535; }
 
         return diffs;
     }
@@ -472,39 +431,67 @@
     function calculateDistanceMM(startEnc, endEnc) {
         // From OI Spec (see sensor packets 43 and 44).
         var distanceClicksPerMM = 0.28117374;
-
         var diffs = calculateEncoderDiffs(startEnc, endEnc);
-        var distanceClicks = (diffs[0] + diffs[1]);
+        var distanceClicks = (diffs[0] + diffs[1])/16;
 
-        return (distanceClicks * distanceClicksPerMM);
+        return (distanceClicks / distanceClicksPerMM);
     }
 
     function calculateAngleDeg(startEnc, endEnc) {
-        var diffs = calculateEncoderDiffs(startEnc, endEnc);
-
         // From OI Spec (see sensor packets 43 and 44).
-        var angleClicksPer10thDeg = 0.5692593;
+        var angleClicksPerDeg = 0.5692593;
+        var diffs = calculateEncoderDiffs(startEnc, endEnc);
+        var angleClicks = (diffs[1] - diffs[0])/16;
 
-        var angleClicks = (diffs[1] - diffs[0]) / 2;
-
-        return (angleClicks / (angleClicksPer10thDeg * 10)); 
+        return (angleClicks / angleClicksPerDeg);
     }
 
+
     var startEncoders;
-    var driveUntilDistance = 0;
-    var turnUntilAngle = 0;
+
+    var driveUntilDistance   = 0;
+    var distanceTraveled     = 0;
+    var estimatedDistanceTraveled = 0;
+    var distanceCountOfIntervals  = 0;
+    var distanceCountOfLastUpdate = 0;
+
+    var turnUntilAngle    = 0;
+    var angleTraveled     = 0;
+    var estimatedAngleTraveled = 0;
+    var angleCountOfIntervals  = 0;
+    var angleCountOfLastUpdate = 0;
+
 
     function checkEncoderDistance(interval, callback) {
         var endEncoders = [getSensor('encoder-counts-left'),
                            getSensor('encoder-counts-right')];
-        var distanceTraveled = calculateDistanceMM(startEncoders, endEncoders);
+        var distanceUpdate = calculateDistanceMM(startEncoders, endEncoders);
+        if (distanceUpdate) {
+            distanceTraveled += distanceUpdate;
+            estimatedDistanceTraveled = distanceTraveled;
+            distanceCountOfLastUpdate = distanceCountOfIntervals;
+        }
+        // Estimate how much we moved.
+        // Require at least 2 updates before we are accurate (update takes ~3 intervals)
+        else if (distanceCountOfLastUpdate > 6) {
+            estimatedDistanceTraveled += distanceTraveled/distanceCountOfLastUpdate;
+        }
 
-        console.log("Drove " + distanceTraveled
-                    + " of " + driveUntilDistance + " mm");
+        console.log("Drove " + estimatedDistanceTraveled
+                    + " of " + driveUntilDistance + " mm" );
 
-        if ((Math.abs(distanceTraveled) < Math.abs(driveUntilDistance))
-            && getBooleanSensor('robot control allowed') )
+        // Do not update until we know the robot is moving.
+        if (distanceTraveled != 0) {
+            distanceCountOfIntervals++;
+        }
+
+        if (   (Math.abs(estimatedDistanceTraveled) < Math.abs(driveUntilDistance))
+            && getBooleanSensor('robot control allowed')
+               // In case another block stops the robot from driving.
+            && robotDriving )
         {
+            startEncoders = endEncoders;
+
             setTimeout(function() {
                 checkEncoderDistance(interval, callback);
             }, interval);
@@ -519,14 +506,33 @@
     function checkEncoderAngle(interval, callback) {
         var endEncoders = [getSensor('encoder-counts-left'),
                            getSensor('encoder-counts-right')];
-        var angleTraveled = calculateAngleDeg(startEncoders, endEncoders);
+        var angleUpdate = calculateAngleDeg(startEncoders, endEncoders);
+        if (angleUpdate) {
+            angleTraveled += angleUpdate;
+            estimatedAngleTraveled = angleTraveled;
+            angleCountOfLastUpdate = angleCountOfIntervals;
+        }
+        // Estimate how much we moved.
+        // Require at least 2 updates before we are accurate (update takes ~3 intervals)
+        else if (angleCountOfLastUpdate > 6 ) {
+            estimatedAngleTraveled += angleTraveled/angleCountOfLastUpdate;
+        }
         
-        console.log("Turned " + angleTraveled
-                    + " of " + turnUntilAngle + " deg");
+        console.log("Turned " + estimatedAngleTraveled
+                    + " of " + turnUntilAngle + " deg" );
 
-        if ((Math.abs(angleTraveled) < Math.abs(turnUntilAngle))
-            && getBooleanSensor('robot control allowed') )
+        // Do not update until we know the robot is moving.
+        if (angleTraveled != 0) {
+            angleCountOfIntervals++;
+        }
+
+        if (   (Math.abs(estimatedAngleTraveled) < Math.abs(turnUntilAngle))
+            && getBooleanSensor('robot control allowed')
+               // In case another block stops the robot from driving.
+            && robotDriving )
         {
+            startEncoders = endEncoders;
+
             setTimeout(function() {
                 checkEncoderAngle(interval, callback);
             }, interval);
@@ -563,8 +569,14 @@
         // Wait until traveled angle degrees
         startEncoders = [getSensor('encoder-counts-left'),
                          getSensor('encoder-counts-right')];
+        
 
         turnUntilAngle = degrees;
+        angleTraveled  = 0;
+        estimatedAngleTraveled = 0;
+        // Initialize at 1 to avoid NaN errors
+        angleCountOfIntervals  = 1;
+        angleCountOfLastUpdate = 1;
         
         console.info("Turning until " + degrees + " degrees");
         checkEncoderAngle(5, callback);
@@ -602,6 +614,11 @@
                          getSensor('encoder-counts-right')];
 
         driveUntilDistance = distance;
+        distanceTraveled   = 0;
+        estimatedDistanceTraveled = 0;
+        // Initialize at 1 to avoid NaN errors
+        distanceCountOfIntervals  = 1;
+        distanceCountOfLastUpdate = 1;
 
         console.info("Driving until " + distance + " mm");
         checkEncoderDistance(5, callback);
