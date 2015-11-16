@@ -705,19 +705,6 @@
         sendNonWheelMotors();
     };
 
-    ext.clean = function() {
-        // Send start command to put in passive first, then clean command
-        var cmd = new Uint8Array([128, 135]);
-        sendToRobot(cmd);
-        cmd = null;
-    };
-
-    ext.dock = function() {
-        // Send start command to put in passive first, then dock command
-        var cmd = new Uint8Array([128, 143]);
-        sendToRobot(cmd);
-        cmd = null;
-    };
 
     var ledStates = {
         'check-robot': 0,
@@ -872,6 +859,20 @@
     var overcurrentOffTrigger = 32;  // ~0.5 second sounds good.
     var bumperCounts = 0;
 
+    /*  Call this after an error is detected to avoid warning for multiple
+     *  safety checks at the same time.
+     */
+    function resetSafetyHandlers() {
+        // To avoid worrying about browser compatability...
+        overcurrentCounts = {
+            'side-brush'  : 0,
+            'main-brush'  : 0,
+            'right wheel' : 0,
+            'left wheel'  : 0
+        };
+        bumperCounts = 0;
+    }
+
     function handleOvercurrent(motor) {
         overcurrentCounts[motor] += getBooleanSensor(motor.concat(' stall'))*2  - 1;
         // Don't allow it to go below 0
@@ -880,18 +881,16 @@
         if (overcurrentCounts[motor] > overcurrentOffTrigger)
         {
             console.warn("Motor overcurrented: " + motor);
-            // If either motor is stalled stop driving
-            if ((motor === 'left wheel') || (motor === 'right wheel'))
-            {
-                go(32768,0);
-            }
-            else // main-brush or side-brush
+            if ((motor === 'side-brush') || (motor === 'main-brush'))
             {
                 console.log(motor.concat('-on'));
                 motorStatus[motor.concat('-on')] = 0;
                 sendNonWheelMotors();
             }
-            overcurrentCounts[motor] = 0; // Reset count to prevent multiple alerts
+            // Stop wheels no matter what caused the error. The alert will stop
+            // the blocks so we want to avoid running without control.
+            go(32768,0);
+            resetSafetyHandlers(); // Reset counts to prevent multiple alerts
             // Alert after stopping because the alert is blocking...
             alert("Safety Error: Overcurrent detected!\\n"
                   + "Please check " + motor + " motor.");
@@ -911,7 +910,7 @@
         {
             console.warn("Bumper pressed for too long");
             go(32768,0)
-            bumperCounts = 0;
+            resetSafetyHandlers(); // Reset counts to prevent multiple alerts
             alert("Safety Error: Bumper pressed for too long!\\n"
                   + "Please check bumper and avoid running Roomba "
                   + "into objects for long periods of time.");
@@ -926,7 +925,7 @@
             if (!(   getBooleanSensor('any wheel')
                   /* Not checking if cliffs are active because this
                      only matters if driving forward.
-                    ||   getBooleanSensor('any cliff')
+                  || getBooleanSensor('any cliff')
                   */
                   || getBooleanSensor('charger plugged in') ))
             {
@@ -1212,6 +1211,8 @@
                                  ]);
         sendToRobot(cmd);
         device.close();
+        device = null;
+        rawData = null;
     }
 
     ext.disconnect = function() {
@@ -1219,7 +1220,6 @@
         device = null;
         rawData = null;
     }
-
 
     ext._shutdown = function() {
         console.info("shutdown...");
@@ -1233,6 +1233,23 @@
         if(watchdog) return {status: 1, msg: 'Looking for Roomba'};
         return {status: 2, msg: 'Roomba connected'};
     };
+
+    ext.clean = function() {
+        // Send start command to put in passive first, then clean command
+        var cmd = new Uint8Array([128, 135]);
+        sendToRobot(cmd);
+        disconnectRobot();
+        alert("Running cleaning mission. Robot disconnected.");
+    };
+
+    ext.dock = function() {
+        // Send start command to put in passive first, then dock command
+        var cmd = new Uint8Array([128, 143]);
+        sendToRobot(cmd);
+        disconnectRobot();
+        alert("Running docking mission. Robot disconnected.");
+    };
+
 
     // Most of the OI is not supported due to issues streaming more
     // than 13 or so packets, but I left in the supporting code.
