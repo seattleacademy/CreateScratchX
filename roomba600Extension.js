@@ -168,8 +168,15 @@
         'stasis': 0
     };
 
-    // 0-6 are groups
-    var sensorLengths = [26, 10, 6, 10, 14, 12, 52, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 1, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 1, 1, 1];
+    var sensorLengths = [26, 10, 6, 10, 14, 12, 52, // Groups  0  - 6
+                         1, 1, 1, 1, 1, 1, 1, 1,    // Sensors 7  - 14
+                         1, 1, 1, 1, 2, 2, 1, 2,    // Sensors 15 - 22
+                         2, 1, 2, 2, 2, 2, 2, 2,    // Sensors 23 - 30
+                         2, 1, 2, 1, 1, 1, 1, 1,    // Sensors 31 - 38
+                         2, 2, 2, 2, 2, 2, 1, 2,    // Sensors 39 - 46
+                         2, 2, 2, 2, 2, 1, 1, 2,    // Sensors 47 - 54
+                         2, 2, 2, 1                 // Sensors 55 - 58
+                        ];
 
 
     // Wrapper that will also print out the opcodes being sent to the browser console.
@@ -369,8 +376,9 @@
     };
 
     ext.setDriveRadius = function(radius) {
-        // Radius must be between -2000 mm and 2000 mm or
-        // signify straight (32767/32768).
+        /* Radius must be between -2000 mm and 2000 mm or
+         * signify straight (32767/32768).
+         */
         if (((radius <= 2000) && (radius >= -2000)) ||
             (radius === 32767) || (radius === 32768) )
         {
@@ -380,7 +388,7 @@
         {
             alert("Radius must be between -2000 and 2000 mm or be 32768 (straight)");
         }
-        console.info("Set radius to " + speed);
+        console.info("Set drive radius to " + radius);
     };
 
     ext.drive = function() {
