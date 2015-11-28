@@ -364,14 +364,17 @@
 
     ext.setDriveSpeed = function(speed) {
         // Speed passed in as a percentage of the normal drive speed of 306 mm/s
-        if ((speed <= 100) && (speed >= -100))
+        // Silently cap speed percentage between 0 and 100%.
+        if (speed > 100)
         {
-            driveSpeed = (306*speed)/100;
+            speed = 100;
         }
-        else
+        else if (speed < 0)
         {
-            alert("Speed must be between -100 and 100 percent");
+            speed = 0;
         }
+        driveSpeed = (306*speed)/100;
+
         console.info("Set speed to " + speed);
     };
 
@@ -603,10 +606,9 @@
         //var distanceClicksPerMM = 0.28117374; // From the Roomba 600 code
         // Max distance is 65535 * distanceClicksPerMM ~ 18.4 meters.
         // Rounding to 15 meters
-        if ((distance > 15000) || (distance < 0))
+        if (abs(distance) > 1500 )
         {
-            alert("Distance must be between 0 and 15000 millimeters.\\n"
-                  + "Set drive speed to a negative % to go backwards.");
+            alert("Distance must be between -1500 and 1500 centimeters.");
             return callback();
         }
         if (driveSpeed === 0)
@@ -621,7 +623,7 @@
         startEncoders = [getSensor('encoder-counts-left'),
                          getSensor('encoder-counts-right')];
 
-        driveUntilDistance = distance;
+        driveUntilDistance = distance*10;  // Convert to mm
         distanceTraveled   = 0;
         estimatedDistanceTraveled = 0;
         // Initialize at 1 to avoid NaN errors
@@ -794,13 +796,17 @@
     };
 
     ext.setCleanLEDIntensity = function(intensity) {
-        if ((intensity <= 100) && (intensity >= 0))
+        // Silently cap intensity between 0 and 100%.
+        if (intensity > 100)
         {
-            ledStates['powerIntensity'] = (intensity*255)/100;
+            intensity = 100;
         }
-        else
+        else if (intensity < 0)
         {
-            alert("Clean LED brightness must be between 0 and 100%");
+            intensity = 0;
+        }
+
+        ledStates['powerIntensity'] = (intensity*255)/100;
         }
 
         setLEDs();
@@ -822,10 +828,13 @@
             ledStates['powerColor'] = 47;
             break;
         default:
-            if ((color < 0) || (color > 255))
+            if (color < 0)
             {
-                alert("Clean LED color must be between 0 and 255.");
-                return;
+                color = 0;
+            }
+            else if (color > 255)
+            {
+                color = 255;
             }
             ledStates['powerColor'] = color;
             break;
@@ -1296,14 +1305,14 @@
              */
 
             // Songs
-            [' ', 'set robot tempo to %n bpm', 'setTempo', '60'],
-            ['w', 'play %d.note for %n beats', 'playNote', '60', '0.5'],
+            [' ', 'set note tempo to %n bpm', 'setTempo', '60'],
+            ['w', 'play note %d.note for %n beats', 'playNote', '60', '0.5'],
 
             // Motion
             [' ', 'set drive speed to %n%', 'setDriveSpeed', '100'],
             [' ', 'set drive radius to %n mm', 'setDriveRadius', '32768'],
             [' ', 'drive', 'drive'],
-            ['w', 'drive %n mm', 'driveUntil', '1000', 'driveUntil'],
+            ['w', 'drive %n cm', 'driveUntil', '100', 'driveUntil'],
             ['w', 'turn @turnLeft %n degrees', 'turnUntilLeft',  '90'],
             ['w', 'turn @turnRight %n degrees','turnUntilRight', '90'],
             [' ', 'stop driving', 'stop'],
