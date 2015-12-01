@@ -38,6 +38,7 @@
 
     var device = null;
     var rawData = null;
+    var dockingq = 0;
 
     var safeModeOpcode = 131;
 
@@ -407,6 +408,8 @@
         var radius_twos = radius;
         var speed_twos = speed;
 
+        dockingq = 0; // No longer docking.
+
         if(radius < 0) {
             radius_twos = 65535 + radius;
         }
@@ -602,7 +605,7 @@
         turnUntil('clockwise', degrees, callback);
     }
 
-    ext.driveUntil = function(distance, callback) {
+    function driveDistance(distance, callback) {
         // Check for the maximum distance that can be measured
         //var distanceClicksPerMM = 0.28117374; // From the Roomba 600 code
         // Max distance is 65535 * distanceClicksPerMM ~ 18.4 meters.
@@ -641,6 +644,10 @@
         console.info("Driving until " + distance + " mm");
         checkEncoderDistance(5, callback);
     };
+
+    ext.driveUntil = function(distance, callback) {
+        driveDistance(distance, callback);
+    }
 
     ext.stop = function() {
         go(32768,0);
@@ -943,7 +950,8 @@
 
     function safetyChecks() {
         // Make sure it's in safe mode
-        if (getSensor('open-interface-mode') != oiModes['safe'])
+        if (   (getSensor('open-interface-mode') != oiModes['safe'])
+            && (dockingq == 0) )
         {
             // If no safety issues, re-enter safe mode
             if (!(   getBooleanSensor('any wheel')
@@ -1266,12 +1274,61 @@
         alert("Running cleaning mission. Robot disconnected.");
     };
 
-    ext.dock = function() {
-        // Send start command to put in passive first, then dock command
-        var cmd = new Uint8Array([128, 143]);
-        sendToRobot(cmd);
-        disconnectRobot();
-        alert("Running docking mission. Robot disconnected.");
+    function turnAfterDock(callback)
+    {
+        // Wait until the backup has completed to turn.
+        if (!robotDriving)
+        {
+            turnUntil(1, 180, callback)
+        }
+        else
+        {
+            window.setTimeout(function() {
+                turnAfterDock(callback);
+        }, 15);
+        }
+    }
+
+    function checkIfDocked(callback)
+    {
+        // If robot docks or was picked up, we've 'docked'.
+        if (   getBooleanSensor('robot on dock')
+            || getBooleanSensor('any wheel') )
+        {
+            dockingq = 0;
+            console.log("Robot docked!");
+            callback();
+        }
+        else
+        {
+            window.setTimeout(function() {
+                checkIfDocked(callback);
+            }, 15);
+        }
+    }
+
+
+    ext.dock = function(type, callback) {
+        // Docking mission
+        if (type === 'go to')
+        {
+            dockingq = 1;
+            // Send start command to put in passive first, then dock command
+            var cmd = new Uint8Array([128, 143]);
+            sendToRobot(cmd);
+            checkIfDocked(callback);
+        }
+        // Leavind dock mission.
+        else if (type === 'leave')
+        {
+            // Only perform if robot is on the dock.
+            if (getBooleanSensor('robot on dock'))
+            {
+                driveSpeed = 306;
+                driveDistance(-30);
+                turnAfterDock(callback);
+            }
+        }
     };
 
 
@@ -1340,7 +1397,7 @@
              */
 
             // Commands
-            [' ', '%m.dock the dock','dock', 'go to'],
+            ['w', '%m.dock the dock','dock', 'go to', 'dock']
         ],
         menus: {
             color:          [ 'green','red','amber','yellow'],
