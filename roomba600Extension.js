@@ -220,7 +220,8 @@
         if (which === 'front-left cliff'  && (getSensor('cliff-front-left') & 0x01))  { return true; }
         if (which === 'front-right cliff' && (getSensor('cliff-front-right') & 0x01)) { return true; }
         if (which === 'right cliff'       && (getSensor('cliff-right') & 0x01))       { return true; }
-        if (which === 'any cliff' && anyCliff()) { return true; }
+        if (which === 'any cliff' && anyCliff())      { return true; }
+        if (which === 'cliff detected' && anyCliff()) { return true; }
 
         if (which === 'virtual wall detected' && (getSensor('virtual-wall') & 0x01))  { return true; }
 
@@ -357,7 +358,7 @@
         }
     }
 
-    var driveSpeed = 0;
+    var driveSpeed = 306;
     var driveRadius = 32768;
     var robotDriving = 0;
 
@@ -606,7 +607,7 @@
         //var distanceClicksPerMM = 0.28117374; // From the Roomba 600 code
         // Max distance is 65535 * distanceClicksPerMM ~ 18.4 meters.
         // Rounding to 15 meters
-        if (abs(distance) > 1500 )
+        if (Math.abs(distance) > 1500 )
         {
             alert("Distance must be between -1500 and 1500 centimeters.");
             return callback();
@@ -617,7 +618,14 @@
             return callback();
         }
 
-        go(driveRadius, driveSpeed);
+        if (distance > 0)
+        {
+            go(driveRadius, driveSpeed);
+        }
+        else
+        {
+            go(driveRadius, -driveSpeed);
+        }
 
         // Wait until traveled distance mm
         startEncoders = [getSensor('encoder-counts-left'),
@@ -807,7 +815,6 @@
         }
 
         ledStates['powerIntensity'] = (intensity*255)/100;
-        }
 
         setLEDs();
     };
@@ -1286,8 +1293,8 @@
             ['h', 'when %m.buttonBumper is pressed', 'whenSensorConnected', 'any button'],
             /* Disable this for now. Wheel drops are not useful in safe mode.
              * ['h', 'when %m.wheelDrop is dropped', 'whenSensorConnected', 'any wheel'],
+             * ['h', 'when %m.cliff is detected',    'whenSensorConnected', 'any cliff'],
              */
-            ['h', 'when %m.cliff is detected',    'whenSensorConnected', 'any cliff'],
 
             /* Disable this for now. No useful analog sensors currently.
              * ['h', 'when %m.sensor %m.lessMore %n', 'whenSensorPass', 'sensor', '>', 0],
@@ -1296,9 +1303,9 @@
             ['b', '%m.booleanSensor',     'booleanSensor', 'wall detected'],
             ['b', '%m.buttonBumper is pressed', 'booleanSensor', 'any button'],
             /* Disable this for now. Wheel drops are not useful in safe mode.
-             *['b', '%m.wheelDrop is dropped',    'booleanSensor', 'any wheel'],
+             * ['b', '%m.wheelDrop is dropped',    'booleanSensor', 'any wheel'],
+             * ['b', '%m.cliff is detected', 'booleanSensor', 'any cliff'],
              */
-            ['b', '%m.cliff is detected', 'booleanSensor', 'any cliff'],
 
             /* Disable this for now. No useful analog sensors currently.
              * ['r', '%m.sensor value', 'sensor', 'sensor'],
@@ -1310,31 +1317,38 @@
 
             // Motion
             [' ', 'set drive speed to %n%', 'setDriveSpeed', '100'],
-            [' ', 'set drive radius to %n mm', 'setDriveRadius', '32768'],
+            /* Disable this for now. Wait for full featured version.
+             * [' ', 'set drive radius to %n mm', 'setDriveRadius', '32768'],
+             */
             [' ', 'drive', 'drive'],
             ['w', 'drive %n cm', 'driveUntil', '100', 'driveUntil'],
             ['w', 'turn @turnLeft %n degrees', 'turnUntilLeft',  '90'],
             ['w', 'turn @turnRight %n degrees','turnUntilRight', '90'],
             [' ', 'stop driving', 'stop'],
-            [' ', 'turn vacuum %m.onOff', 'vacuumEnable', 'off'],
-            [' ', 'turn %m.motors motor %m.motorEnable', 'motorEnable', 'main brush', 'off'],
+            /* Disable this for now. Wait for full featured version.
+             * [' ', 'turn vacuum %m.onOff', 'vacuumEnable', 'off'],
+             * [' ', 'turn %m.motors motor %m.motorEnable', 'motorEnable', 'main brush', 'off'],
+             */
 
             // LEDs
-            [' ', 'turn %m.led led %m.onOff','setLED','debris','on'],
-            [' ', 'set digits to %s %s %s %s', 'setDigits', '0', '0', '0', '0'],
+            [' ', 'turn %m.led LED %m.onOff','setLED','debris','on'],
+            [' ', 'set display to %s %s %s %s', 'setDigits', '0', '0', '0', '0'],
             [' ', 'set clean LED brightness to %n%', 'setCleanLEDIntensity', '100'],
             [' ', 'set clean LED color to %m.color', 'setCleanLEDColor', 'green'],
-            [' ', 'set clean LED color to %n','setCleanLEDColor','0'],
+            /* Disable this for now. Wait for full featured version.
+             * [' ', 'set clean LED color to %n','setCleanLEDColor','0'],
+             */
 
             // Commands
-            [' ', 'go to the dock','dock'],
+            [' ', '%m.dock the dock','dock', 'go to'],
         ],
         menus: {
             color:          [ 'green','red','amber','yellow'],
             led:            [ 'check-robot',
+                              'debris'
+                              /* Disable this for now. Wait for full featured version.
                               'dock',
                               'spot',
-                              'debris',
                               'Sun',
                               'Mon',
                               'Tue',
@@ -1344,7 +1358,9 @@
                               'Sat',
                               'AM',
                               'PM',
-                              ':' ],
+                              ':'
+                              */
+                              ],
             // Vacuum is not in the 'motor' list because it is only allowed
             // to be on or off (not forward, reverse, off).
             motors:         [ 'side brush','main brush'],
@@ -1353,9 +1369,11 @@
             buttonBumper:   [ 'clean button',
                               'spot button',
                               'dock button',
+                              /* Disable this for now. Wait for full featured version.
                               'minute button',
                               'hour button',
                               'day button',
+                              */
                               /* Bug with these two buttons right now.
                               'schedule button',
                               'clock button',
@@ -1377,11 +1395,14 @@
                               'wall left detected',
                               'wall front detected',
                               'wall right detected',
+                              'cliff detected'
+                              /* Disable this for now. Wait for full featured version.
                               'charger plugged in',
                               'robot on dock',
                               'robot control allowed'
-                              /*
                               'virtual wall detected',
+                              */
+                              /*
                               'side-brush stall detected',
                               'main-brush stall detected',
                               'right wheel stall detected',
@@ -1443,6 +1464,9 @@
                               'side-brush-current',
                               'stasis'
                               */ ],
+            dock:           ['go to',
+                             'leave'
+                            ],
             lessMore:       [ '>', '<', '=' ],
         },
         url: 'http://www.irobot.com/stem'
