@@ -1328,6 +1328,10 @@
                 driveDistance(-30);
                 turnAfterDock(callback);
             }
+            else
+            {
+                callback();
+            }
         }
     };
 
