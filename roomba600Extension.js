@@ -1324,7 +1324,7 @@
             // Only perform if robot is on the dock.
             if (getBooleanSensor('robot on dock'))
             {
-                driveSpeed = 306;
+                driveSpeed = 108;
                 driveDistance(-30);
                 turnAfterDock(callback);
             }
