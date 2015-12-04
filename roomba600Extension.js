@@ -253,9 +253,9 @@
         if (which === 'charging'          && (getSensor('charging-state') > 0) && (getSensor('charging-state') < 5)) { return true; }
 
         // charger available
-        if (which === 'charger plugged in'   && (getSensor('charger-available') & 0x01)) { return true; }
-        if (which === 'robot on dock'        && (getSensor('charger-available') & 0x02)) { return true; }
-        if (which === 'charger not detected' && !(getSensor('wall') & 0x03)) { return true; }
+        if (which === 'charger plugged in'   &&  (getSensor('charger-available') & 0x01)) { return true; }
+        if (which === 'robot on dock'        &&  (getSensor('charger-available') & 0x02)) { return true; }
+        if (which === 'charger not detected' && !(getSensor('charger-available') & 0x03)) { return true; }
 
         if (which === 'song playing' && (getSensor('song-playing?') & 0x01)) { return true; }
         
