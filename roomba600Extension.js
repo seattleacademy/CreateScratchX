@@ -1279,7 +1279,7 @@
         // Wait until the backup has completed to turn.
         if (!robotDriving)
         {
-            turnUntil(1, 180, callback)
+            turnUntil('clockwise', 180, callback)
         }
         else
         {
@@ -1324,8 +1324,8 @@
             // Only perform if robot is on the dock.
             if (getBooleanSensor('robot on dock'))
             {
-                driveSpeed = 108;
-                driveDistance(-30);
+                driveSpeed = 175;
+                driveDistance(-20);
                 turnAfterDock(callback);
             }
             else
