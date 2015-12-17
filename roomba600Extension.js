@@ -1354,7 +1354,6 @@
             ['h', 'when %m.buttonBumper is pressed', 'whenSensorConnected', 'any button'],
             /* Disable this for now. Wheel drops are not useful in safe mode.
              * ['h', 'when %m.wheelDrop is dropped', 'whenSensorConnected', 'any wheel'],
-             * ['h', 'when %m.cliff is detected',    'whenSensorConnected', 'any cliff'],
              */
 
             /* Disable this for now. No useful analog sensors currently.
@@ -1365,7 +1364,6 @@
             ['b', '%m.buttonBumper is pressed', 'booleanSensor', 'any button'],
             /* Disable this for now. Wheel drops are not useful in safe mode.
              * ['b', '%m.wheelDrop is dropped',    'booleanSensor', 'any wheel'],
-             * ['b', '%m.cliff is detected', 'booleanSensor', 'any cliff'],
              */
 
             /* Disable this for now. No useful analog sensors currently.
@@ -1443,7 +1441,8 @@
                               // Bumper
                               'right bumper',
                               'left bumper',
-                              'bumper'],
+                              'bumper'
+                            ],
             cliff:          [ 'left cliff',
                               'front-left cliff',
                               'front-right cliff',
@@ -1534,5 +1533,5 @@
         },
         url: 'http://www.irobot.com/stem'
     };
-    ScratchExtensions.register('Roomba600', descriptor, ext, {type: 'serial'});
+    ScratchExtensions.register('iRobot Create 2', descriptor, ext, {type: 'serial'});
 })({});
