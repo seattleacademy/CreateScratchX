@@ -222,9 +222,9 @@
         if (which === 'front-right cliff' && (getSensor('cliff-front-right') & 0x01)) { return true; }
         if (which === 'right cliff'       && (getSensor('cliff-right') & 0x01))       { return true; }
         if (which === 'any cliff' && anyCliff())      { return true; }
-        if (which === 'cliff detected' && anyCliff()) { return true; }
+        if (which === 'cliff' && anyCliff()) { return true; }
 
-        if (which === 'virtual wall detected' && (getSensor('virtual-wall') & 0x01))  { return true; }
+        if (which === 'virtual wall' && (getSensor('virtual-wall') & 0x01))  { return true; }
 
         // overcurrents
         if (which === 'side-brush stall'  && (getSensor('overcurrents') & 0x01)) { return true; }
@@ -260,10 +260,10 @@
         if (which === 'song playing' && (getSensor('song-playing?') & 0x01)) { return true; }
         
         // Light bumper sections
-        if ((which === 'wall detected')       && (getSensor('light-bumper') & 0xFF)) { return true; }
-        if ((which === 'wall left detected')  && (getSensor('light-bumper') & 0x03)) { return true; }
-        if ((which === 'wall front detected') && (getSensor('light-bumper') & 0x1E)) { return true; }
-        if ((which === 'wall right detected') && (getSensor('light-bumper') & 0x30)) { return true; }
+        if ((which === 'wall')       && (getSensor('light-bumper') & 0xFF)) { return true; }
+        if ((which === 'wall left')  && (getSensor('light-bumper') & 0x03)) { return true; }
+        if ((which === 'wall front') && (getSensor('light-bumper') & 0x1E)) { return true; }
+        if ((which === 'wall right') && (getSensor('light-bumper') & 0x30)) { return true; }
         // Individual light bumpers
         if (which === 'left light bumper activated'         && (getSensor('light-bumper') & 0x01)) { return true; }
         if (which === 'front-left light bumper activated'   && (getSensor('light-bumper') & 0x02)) { return true; }
@@ -1350,7 +1350,7 @@
         // 'h' 	Hat block (synchronous, returns boolean, true = run stack)
 
         blocks: [
-            ['h', 'when %m.booleanSensor',     'whenSensorConnected', 'wall detected'],
+            ['h', 'when %m.detectSensors detected',  'whenSensorConnected', 'wall'],
             ['h', 'when %m.buttonBumper is pressed', 'whenSensorConnected', 'any button'],
             /* Disable this for now. Wheel drops are not useful in safe mode.
              * ['h', 'when %m.wheelDrop is dropped', 'whenSensorConnected', 'any wheel'],
@@ -1361,7 +1361,7 @@
              * ['h', 'when %m.sensor %m.lessMore %n', 'whenSensorPass', 'sensor', '>', 0],
              */
 
-            ['b', '%m.booleanSensor',     'booleanSensor', 'wall detected'],
+            ['b', '%m.detectSensors detected',  'booleanSensor', 'wall'],
             ['b', '%m.buttonBumper is pressed', 'booleanSensor', 'any button'],
             /* Disable this for now. Wheel drops are not useful in safe mode.
              * ['b', '%m.wheelDrop is dropped',    'booleanSensor', 'any wheel'],
@@ -1452,16 +1452,18 @@
             wheelDrop:      [ 'right wheel',
                               'left wheel',
                               'any wheel'],
-            booleanSensor:  [ 'wall detected',
-                              'wall left detected',
-                              'wall front detected',
-                              'wall right detected',
-                              'cliff detected'
+            detectSensors:  [ 'wall',
+                              'wall left',
+                              'wall front',
+                              'wall right',
+                              'cliff'
+                            ],
+            booleanSensor:  [
                               /* Disable this for now. Wait for full featured version.
                               'charger plugged in',
                               'robot on dock',
                               'robot control allowed'
-                              'virtual wall detected',
+                              'virtual wall',
                               */
                               /*
                               'side-brush stall detected',
