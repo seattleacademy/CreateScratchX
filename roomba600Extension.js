@@ -359,13 +359,14 @@
         }
     }
 
-    var driveSpeed = 306;
+    var topDriveSpeed = 300;
+    var driveSpeed = topDriveSpeed;
     var driveRadius = 32768;
     var robotDriving = 0;
 
 
     ext.setDriveSpeed = function(speed) {
-        // Speed passed in as a percentage of the normal drive speed of 306 mm/s
+        // Speed passed in as a percentage of the normal drive speed of 300 mm/s
         // Silently cap speed percentage between 0 and 100%.
         if (speed > 100)
         {
@@ -375,7 +376,7 @@
         {
             speed = 0;
         }
-        driveSpeed = (306*speed)/100;
+        driveSpeed = (topDriveSpeed*speed)/100;
 
         console.info("Set speed to " + speed);
     };
@@ -443,13 +444,13 @@
         return diffs;
     }
 
-    function calculateDistanceMM(startEnc, endEnc) {
+    function calculateDistanceCM(startEnc, endEnc) {
         // From OI Spec (see sensor packets 43 and 44).
         var distanceClicksPerMM = 0.28117374;
         var diffs = calculateEncoderDiffs(startEnc, endEnc);
         var distanceClicks = (diffs[0] + diffs[1])/16;
 
-        return (distanceClicks / distanceClicksPerMM);
+        return (distanceClicks / distanceClicksPerMM)/10; // Convert to cm.
     }
 
     function calculateAngleDeg(startEnc, endEnc) {
@@ -480,27 +481,33 @@
     function checkEncoderDistance(interval, callback) {
         var endEncoders = [getSensor('encoder-counts-left'),
                            getSensor('encoder-counts-right')];
-        var distanceUpdate = calculateDistanceMM(startEncoders, endEncoders);
+        var distanceUpdate = calculateDistanceCM(startEncoders, endEncoders);
         if (distanceUpdate) {
             distanceTraveled += distanceUpdate;
             estimatedDistanceTraveled = distanceTraveled;
-            distanceCountOfLastUpdate = distanceCountOfIntervals;
+            distanceCountOfLastUpdate = distanceCountOfIntervals - 1;
         }
-        // Estimate how much we moved.
+        // If no updates since drive was requested, assume we are moving at
+        // least half as fast as the input drive speed (converted to CM).
+        else if (distanceTraveled == 0) {
+            estimatedDistanceTraveled += ((driveSpeed/10) * interval/1000)/2;
+        }
+
+        // Estimate how much we moved (and will move by the next update).
         // Require at least 2 updates before we are accurate (update takes ~3 intervals)
-        else if (distanceCountOfLastUpdate > 6) {
+        else if (distanceCountOfLastUpdate > 3) {
             estimatedDistanceTraveled += distanceTraveled/distanceCountOfLastUpdate;
         }
 
         console.log("Drove " + estimatedDistanceTraveled
-                    + " of " + driveUntilDistance + " mm" );
+                    + " of " + driveUntilDistance + " cm --" + distanceTraveled);
 
         // Do not update until we know the robot is moving.
-        if (distanceTraveled != 0) {
+        if (distanceTraveled !== 0) {
             distanceCountOfIntervals++;
         }
 
-        if (   (Math.abs(estimatedDistanceTraveled) < Math.abs(driveUntilDistance))
+        if (   (Math.ceil(Math.abs(estimatedDistanceTraveled)) < Math.abs(driveUntilDistance))
             && getBooleanSensor('robot control allowed')
                // In case another block stops the robot from driving.
             && robotDriving )
@@ -525,23 +532,29 @@
         if (angleUpdate) {
             angleTraveled += angleUpdate;
             estimatedAngleTraveled = angleTraveled;
-            angleCountOfLastUpdate = angleCountOfIntervals;
+            angleCountOfLastUpdate = angleCountOfIntervals - 1;
         }
-        // Estimate how much we moved.
+        // If no updates since turn was requested, assume we are moving at
+        // least a little bit.
+        else if (angleTraveled == 0) {
+            estimatedAngleTraveled += 0.5 * driveSpeed/topDriveSpeed;
+        }
+
+        // Estimate how much we moved (and will move by the next update).
         // Require at least 2 updates before we are accurate (update takes ~3 intervals)
-        else if (angleCountOfLastUpdate > 6 ) {
+        if (angleCountOfLastUpdate > 3 ) {
             estimatedAngleTraveled += angleTraveled/angleCountOfLastUpdate;
         }
         
         console.log("Turned " + estimatedAngleTraveled
-                    + " of " + turnUntilAngle + " deg" );
+                    + " of " + turnUntilAngle + " deg --" + angleTraveled);
 
         // Do not update until we know the robot is moving.
-        if (angleTraveled != 0) {
+        if (angleTraveled !== 0) {
             angleCountOfIntervals++;
         }
 
-        if (   (Math.abs(estimatedAngleTraveled) < Math.abs(turnUntilAngle))
+        if (   (Math.ceil(Math.abs(estimatedAngleTraveled)) < Math.abs(turnUntilAngle))
             && getBooleanSensor('robot control allowed')
                // In case another block stops the robot from driving.
             && robotDriving )
@@ -584,14 +597,12 @@
         // Wait until traveled angle degrees
         startEncoders = [getSensor('encoder-counts-left'),
                          getSensor('encoder-counts-right')];
-        
 
         turnUntilAngle = degrees;
         angleTraveled  = 0;
         estimatedAngleTraveled = 0;
-        // Initialize at 1 to avoid NaN errors
-        angleCountOfIntervals  = 1;
-        angleCountOfLastUpdate = 1;
+        angleCountOfIntervals  = 0;
+        angleCountOfLastUpdate = 0;
         
         console.info("Turning until " + degrees + " degrees");
         checkEncoderAngle(5, callback);
@@ -634,12 +645,11 @@
         startEncoders = [getSensor('encoder-counts-left'),
                          getSensor('encoder-counts-right')];
 
-        driveUntilDistance = distance*10;  // Convert to mm
+        driveUntilDistance = distance;
         distanceTraveled   = 0;
         estimatedDistanceTraveled = 0;
-        // Initialize at 1 to avoid NaN errors
-        distanceCountOfIntervals  = 1;
-        distanceCountOfLastUpdate = 1;
+        distanceCountOfIntervals  = 0;
+        distanceCountOfLastUpdate = 0;
 
         console.info("Driving until " + distance + " mm");
         checkEncoderDistance(5, callback);
@@ -1045,7 +1055,6 @@
                     index = index + 1;
                 }
             }
-            
             for(var name in sensorCache) {
                 if(sensorCache.hasOwnProperty(name)) {
                     var v = inputArray[sensorIndices[name]];          
@@ -1109,7 +1118,7 @@
         device.set_receive_handler(function(data) {
             while(data.byteLength > 0) {
                 var dataBytes = new Uint8Array(data);
-                var pktStart = [].indexOf.call(dataBytes, 19);
+                var pktStart = dataBytes.indexOf(19);
                 var curPktLength, curPktRead;
 
                 if(rawData && (pktStart !== 0)) {
